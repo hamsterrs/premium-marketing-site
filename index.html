@@ -18,10 +18,16 @@
         .shadow-lift { box-shadow: 0 10px 30px rgba(30, 64, 175, 0.15); }
         .icon-size { width: 40px; height: 40px; }
         /* Style for preventing background scrolling when modal is open */
-        .modal-open { overflow: hidden; }
+        .modal-open { overflow: hidden; } 
     </style>
 </head>
 <body class="antialiased">
+
+    <!-- Temporary Message Area for Geolocation Feedback -->
+    <div id="tempMessageArea" class="fixed top-0 left-1/2 transform -translate-x-1/2 mt-4 z-50 p-3 rounded-lg shadow-xl text-sm hidden transition-all duration-500 ease-out" role="alert">
+        <!-- Messages will be injected here -->
+    </div>
+    <!-- End Temporary Message Area -->
 
     <!-- Header & Navigation -->
     <header class="bg-white shadow-md">
@@ -52,9 +58,12 @@
             <p class="text-xl md:text-2xl font-light mb-10 opacity-90">
                 We manage your entire online presence and only get paid a percentage from the revenue our advertising generates. **We only succeed when you do.**
             </p>
-            <a href="#contact" class="px-8 py-4 bg-primary text-white text-lg font-bold rounded-xl hover:bg-white hover:text-secondary transition duration-300 shadow-lift transform hover:scale-105 inline-block">
-                Start Your Risk-Free Growth
-            </a>
+            <div class="flex flex-col sm:flex-row justify-center space-y-4 sm:space-y-0 sm:space-x-6">
+                <a href="#contact" class="px-8 py-4 bg-primary text-white text-lg font-bold rounded-xl hover:bg-white hover:text-secondary transition duration-300 shadow-lift transform hover:scale-105 inline-block">
+                    Start Your Risk-Free Growth
+                </a>
+            </div>
+
             <p class="mt-4 text-sm font-medium opacity-80">Serving ambitious small businesses nationwide.</p>
         </div>
     </section>
@@ -206,7 +215,7 @@
         </div>
     </footer>
 
-    <!-- Terms and Conditions Modal -->
+    <!-- Terms and Conditions Modal (Existing) -->
     <div id="termsModal" class="fixed inset-0 z-50 bg-gray-900 bg-opacity-75 hidden flex items-center justify-center p-4" aria-modal="true" role="dialog">
         <div class="bg-white rounded-xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-y-auto">
             <div class="p-8">
@@ -263,68 +272,157 @@
         // Set current year in footer
         document.getElementById('currentYear').textContent = new Date().getFullYear();
 
-        // Handle Form Submission (Simulated)
-        document.getElementById('contactForm').addEventListener('submit', function(e) {
+        // --- GLOBAL ELEMENTS ---
+        const body = document.body;
+        
+        // Form Elements
+        const contactForm = document.getElementById('contactForm');
+        const successMessage = document.getElementById('successMessage');
+        const errorMessage = document.getElementById('errorMessage');
+
+        // Geolocation Display Elements (Temporary Message)
+        const tempMessageArea = document.getElementById('tempMessageArea');
+
+        // Terms Modal Elements
+        const termsModal = document.getElementById('termsModal');
+        const openTerms = document.getElementById('openTerms');
+        const closeTerms = document.getElementById('closeTerms');
+
+        // --- MODAL CONTROLS ---
+
+        function openModal(modal) {
+            modal.classList.remove('hidden');
+            body.classList.add('modal-open'); 
+        }
+
+        function closeModal(modal) {
+            modal.classList.add('hidden');
+            body.classList.remove('modal-open');
+        }
+
+        // --- UTILITY: TEMPORARY MESSAGE DISPLAY ---
+
+        function displayTempMessage(message, type) {
+            tempMessageArea.textContent = message;
+            tempMessageArea.classList.remove('hidden', 'bg-green-100', 'text-green-800', 'bg-red-100', 'text-red-800');
+            
+            if (type === 'success') {
+                tempMessageArea.classList.add('bg-green-100', 'text-green-800');
+            } else if (type === 'error') {
+                tempMessageArea.classList.add('bg-red-100', 'text-red-800');
+            } else {
+                tempMessageArea.classList.add('bg-gray-100', 'text-gray-800');
+            }
+            
+            // Auto-hide after 5 seconds
+            setTimeout(() => {
+                tempMessageArea.classList.add('hidden');
+            }, 5000);
+        }
+
+        // --- GEOLOCATION LOGIC ---
+
+        // Geolocation success handler
+        function showPosition(position) {
+            const lat = position.coords.latitude.toFixed(6);
+            const lon = position.coords.longitude.toFixed(6);
+
+            // Save coordinates to localStorage (as requested)
+            localStorage.setItem('user_latitude', lat);
+            localStorage.setItem('user_longitude', lon);
+            
+            console.log(`Geolocation Success: Lat=${lat}, Lon=${lon}. Saved to localStorage.`);
+            displayTempMessage(`Location verified and saved: Lat ${lat}`, 'success');
+        }
+
+        // Geolocation error handler
+        function showError(error) {
+            let message = '';
+            
+            switch(error.code) {
+                case error.PERMISSION_DENIED:
+                    message = "Location Blocked: Access denied by the user. Service verification failed.";
+                    break;
+                case error.POSITION_UNAVAILABLE:
+                    message = "Location Error: Position information is unavailable.";
+                    break;
+                case error.TIMEOUT:
+                    message = "Location Error: The request to get user location timed out.";
+                    break;
+                default:
+                    message = "An unknown error occurred during location retrieval.";
+                    break;
+            }
+            console.error(`Geolocation Error: ${message}`);
+            displayTempMessage(message, 'error');
+        }
+
+        // Main function to initiate the request (Triggers the native browser prompt)
+        function getLocation() {
+            if (navigator.geolocation) {
+                displayTempMessage("Requesting browser location permission...", 'info');
+                
+                // Call the Geolocation API (This is the line that triggers the native browser prompt!)
+                navigator.geolocation.getCurrentPosition(showPosition, showError, {
+                    enableHighAccuracy: true,
+                    timeout: 5000,
+                    maximumAge: 0
+                });
+            } else {
+                displayTempMessage("Geolocation is not supported by this browser.", 'error');
+            }
+        }
+        
+        // --- CORE APPLICATION FLOW ---
+
+        function initApp() {
+            const savedLat = localStorage.getItem('user_latitude');
+            
+            if (!savedLat) {
+                // If coordinates are not saved, trigger location check immediately on load
+                getLocation();
+            } else {
+                // If coordinates are already saved
+                displayTempMessage(`Welcome back! Location saved: Lat ${savedLat}`, 'info');
+            }
+        }
+        
+        // --- TERMS MODAL HANDLERS ---
+        
+        openTerms.addEventListener('click', function(e) {
             e.preventDefault();
+            openModal(termsModal);
+        });
 
-            const successMessage = document.getElementById('successMessage');
-            const errorMessage = document.getElementById('errorMessage');
+        closeTerms.addEventListener('click', () => closeModal(termsModal));
 
-            // Simple validation check
+        termsModal.addEventListener('click', function(e) {
+            if (e.target === termsModal) {
+                closeModal(termsModal);
+            }
+        });
+
+        // --- FORM SUBMISSION (Simulated) ---
+        
+        contactForm.addEventListener('submit', function(e) {
+            e.preventDefault();
             const businessName = document.getElementById('businessName').value;
             const email = document.getElementById('email').value;
 
             if (businessName && email) {
-                // Simulate successful submission
                 successMessage.classList.remove('hidden');
                 errorMessage.classList.add('hidden');
                 this.reset();
-                
-                // Scroll to the success message for visibility
                 successMessage.scrollIntoView({ behavior: 'smooth' });
-
-                // In a real app, you would send this data to a server here.
-                console.log("Form Submitted Successfully (Simulated):", {
-                    businessName: businessName,
-                    email: email,
-                    monthlyRevenue: document.getElementById('monthlyRevenue').value,
-                    goals: document.getElementById('goals').value
-                });
-
             } else {
-                // Show error message if validation fails
                 errorMessage.classList.remove('hidden');
                 successMessage.classList.add('hidden');
             }
         });
+        
+        // Initialize the application flow (Location check immediately)
+        window.onload = initApp;
 
-        // --- Modal Logic ---
-        const termsModal = document.getElementById('termsModal');
-        const openTerms = document.getElementById('openTerms');
-        const closeTerms = document.getElementById('closeTerms');
-        const body = document.body;
-
-        // Open the modal
-        openTerms.addEventListener('click', function(e) {
-            e.preventDefault();
-            termsModal.classList.remove('hidden');
-            body.classList.add('modal-open'); // Prevent background scrolling
-        });
-
-        // Close the modal
-        function closeModal() {
-            termsModal.classList.add('hidden');
-            body.classList.remove('modal-open'); // Restore scrolling
-        }
-
-        closeTerms.addEventListener('click', closeModal);
-
-        // Close modal when clicking outside the content
-        termsModal.addEventListener('click', function(e) {
-            if (e.target === termsModal) {
-                closeModal();
-            }
-        });
     </script>
 
 </body>
